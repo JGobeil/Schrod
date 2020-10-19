@@ -43,6 +43,11 @@ end
 energy(states, n::Integer) = energy(states)[n]
 energy(wf::WaveFunctions) = wf.energy
 
+import Base.size
+import Base.length
+size(wf::WaveFunctions, n::Integer) = size(wf.energy, n)
+size(wf::WaveFunctions) = size(wf.energy)
+length(wf::WaveFunctions) = length(wf.energy)
 
 
 function groupbyenergy(Ei, tol)
