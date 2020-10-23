@@ -64,7 +64,12 @@ function solve(potential, fset::AbstractFunctionSet;
     O, H = hamiltonian(potential, fset)
 
 	@debug "Diagolisation of the Hamiltonian"
+
+    ## weird bug on windows with matplotlib call (see double_eval_bug_test.jl)
+    Sys.iswindows() && eigen(collect(I(50)), collect(I(50)))
     eigs = eigen(H, O)
+
+    #@debug "Eigen values 1:10" eigs.values[1:10]
 
     WaveFunctions(eigs, fset, potential)
 end
