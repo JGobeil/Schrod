@@ -39,9 +39,8 @@ function hamiltonian(potential, gs::GaussianSet{T, D}) where {T, D}
     #Threads.@threads for j in 1:N
     #Threads.@threads for j in randperm(N) # Use a random array to *evently* paralize
 
-    if _progressbar 
-        p = Progress(steps, desc="Calculating Vᵢⱼ = <ϕᵢ|V|ϕⱼ>: ") 
-    end
+    _progressbar && (p = Progress(steps, desc="Calculating Vᵢⱼ = <ϕᵢ|V|ϕⱼ>: "))
+
     for j in 1:N 
         for i in 1:j
             if O[i, j] > 1e-8
