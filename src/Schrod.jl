@@ -16,12 +16,15 @@ export Vij
 using LinearAlgebra
 using Statistics
 using Random # for parallel loop
+using SparseArrays
 
 # Ext. libs
 using ProgressMeter
-using Cubature
 using Clustering
+using Arpack
+
 using AtomicUnits: eV, nm
+
 
 # Libs
 #using Basis
@@ -59,19 +62,21 @@ set `fset`. Find a maximum of `maxstates` states (-1 = infinity).
 function solve(potential, fset::AbstractFunctionSet; 
     progressbar = _progressbar,
     threaded = _threaded,
-    maxstates=-1)
+    maxstates = 100,
+    tol = 1e-15)
     @debug "Solving Schrodinger equation" potential fset
-    O, H = hamiltonian(potential, fset)
+    H, O = hamiltonian(potential, fset, tol)
 
 	@debug "Diagolisation of the Hamiltonian"
 
     ## weird bug on windows with matplotlib call (see double_eval_bug_test.jl)
-    Sys.iswindows() && eigen(collect(I(50)), collect(I(50)))
-    eigs = eigen(H, O)
+    #Sys.iswindows() && eigen(collect(I(50)), collect(I(50)))
+
+    eigens = eigs(H, O; nev=maxstates, which=:SM)
 
     #@debug "Eigen values 1:10" eigs.values[1:10]
 
-    WaveFunctions(eigs, fset, potential)
+    WaveFunctions(eigens[1], eigens[2], fset, potential)
 end
 
 end

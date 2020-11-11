@@ -1,23 +1,24 @@
 
 abstract type AbstractWaveFunctions end
 Base.broadcastable(p::AbstractWaveFunctions) = Ref(p)
+export AbstractWaveFunctions
 
 """ Structure containing the results of a calculation with
 eigenvalues, eigenvector, function set and the potential used."""
 struct WaveFunctions{FLOAT, FSET, PFUNC} <: AbstractWaveFunctions
-    energy::Vector{FLOAT}
-	statevec::Matrix{FLOAT}
+    eval::Vector{FLOAT}
+	evec::Matrix{FLOAT}
 	functionset::FSET
 	waves::Vector{FSET}
-	potential::PFUNC
+    potential::PFUNC
 end
 
 """ WaveFunction contructor """
-function WaveFunctions(eigs, functionset::AbstractFunctionSet, potential)
-    Ai = eigs.vectors
-    Ei = eigs.values
+function WaveFunctions(eval, evec, functionset::AbstractFunctionSet, potential)
+    Ai = evec
+    Ei = eval
     if eltype(Ei) <: Complex
-        @warn "Eigenvalues are complex"
+        @warn "Eigenvalues are complex. Using absolute values"
         Ei = abs.(Ei)
         Ai = abs.(Ai)
     end
@@ -41,13 +42,13 @@ function WaveFunctions(eigs, functionset::AbstractFunctionSet, potential)
 end
 
 energy(states, n::Integer) = energy(states)[n]
-energy(wf::WaveFunctions) = wf.energy
+energy(wf::WaveFunctions) = wf.eval
 
 import Base.size
 import Base.length
-size(wf::WaveFunctions, n::Integer) = size(wf.energy, n)
-size(wf::WaveFunctions) = size(wf.energy)
-length(wf::WaveFunctions) = length(wf.energy)
+size(wf::WaveFunctions, n::Integer) = size(wf.eval, n)
+size(wf::WaveFunctions) = size(wf.eval)
+length(wf::WaveFunctions) = length(wf.eval)
 
 
 function groupbyenergy(Ei, tol)
@@ -59,21 +60,25 @@ function groupbyenergy(Ei, tol)
 end
 
 function groupbyenergy(wf::WaveFunctions, tol)
-	groupbyenergy(wf.energy, tol)
+	groupbyenergy(wf.eval, tol)
 end
 
-struct GroupedWaveFunctions{FLOAT, FSET, PFUNC} <: AbstractFunctionSet
-    energy::Vector{FLOAT}
-    wavefunctions::WaveFunctions{FLOAT, FSET, PFUNC}
+struct GroupedWaveFunctions{FLOAT, WAVE} <: AbstractWaveFunctions
+    eval::Vector{FLOAT}
+    wavefunctions::WAVE
     groups::Vector{Vector{Int64}}
 end
 
-function GroupedWaveFunctions(wf::WaveFunctions, tol=0.01eV)
-    gp, en = groupbyenergy(wf.energy, tol)
+function GroupedWaveFunctions(wf, tol=0.01eV)
+    gp, en = groupbyenergy(energy(wf), tol)
     GroupedWaveFunctions(en, wf, gp)
 end
 
-energy(gwf::GroupedWaveFunctions) = gwf.energy
+energy(gwf::GroupedWaveFunctions) = gwf.eval
+
+size(gwf::GroupedWaveFunctions, n::Integer) = size(gwf.eval, n)
+size(gwf::GroupedWaveFunctions) = size(gwf.eval)
+length(gwf::GroupedWaveFunctions) = length(gwf.eval)
 
 function state(wf::WaveFunctions, n::Integer, x::Real)
     wf.waves[n](x)^2

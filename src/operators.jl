@@ -1,7 +1,14 @@
 
-integrate(V::Function, xmin, xmax; reltol=1e-8) = hcubature(V, xmin, xmax, reltol=reltol)
+using HCubature
+using SharedArrays
+using Distributed
+using Printf
 
-function hamiltonian(potential, gs::GaussianSet{T, D}) where {T, D}
+using Gaussian
+using Schrod
+using SparseArrays
+
+function hamiltonian(potential, gs::GaussianSet{T, D}, tol=1e-15) where {T, D} # D is the dimension
     N = gs.N
 
     @debug "Calculating Halmiltonian with Gaussian set in $(D)D" N
@@ -10,10 +17,12 @@ function hamiltonian(potential, gs::GaussianSet{T, D}) where {T, D}
     μ = gs.μ
 	a = gs.a
 
-    O = Array{Float64}(undef, (N, N))
-    H = Array{Float64}(undef, (N, N))
+    #O = Array{Float64}(0.0, (N, N))
+    #H = Array{Float64}(0.0, (N, N))
 
-	#x = collect(LinRange(xmin[1], xmax[1], 2000))
+    O = zeros(Float64, (N, N))
+    H = zeros(Float64, (N, N))
+
 
 	steps = Int64(N*(N+1)/2)
     @debug "Calculating kinetic (Tij) and overlap (Oij) " steps
@@ -21,51 +30,50 @@ function hamiltonian(potential, gs::GaussianSet{T, D}) where {T, D}
         for i in 1:j
 			μij = μ[i, :] - μ[j, :]
             αij = 0.5ν*dot(μij, μij)
-            O[j, i] = O[i, j] = Oij = a[i]*a[j]*(π/2ν)^(D/2)*exp(-αij)
-            H[i, j] = -0.5ν * (2αij - D) * Oij
+            Oij = a[i]*a[j]*(π/2ν)^(D/2)*exp(-αij)
+            O[j, i] = O[i, j] = Oij
+            Hij = -0.5ν * (2αij - D) * Oij
+            H[i, j] = Hij
         end
     end
 
     @debug "Calculating Vᵢⱼ = <ϕᵢ|V|ϕⱼ> " steps
-	skipped = 0
-    integrated = 0
-    totalerr = 0.0
-    totalvij = 0.0
 
-	σmax = maximum(gs.σ) * 10
-	#xmin = minimum(gs.μ, dims=1) .- σmax
-    #xmax = maximum(gs.μ, dims=1) .+ σmax
+	σmax = maximum(gs.σ) * 6
 
-    #Threads.@threads for j in 1:N
-    #Threads.@threads for j in randperm(N) # Use a random array to *evently* paralize
+    todo = [(i, j) for j in 1:N for i in 1:j if abs(O[i, j]) > tol*abs(O[1, 1])]
 
-    _progressbar && (p = Progress(steps, desc="Calculating Vᵢⱼ = <ϕᵢ|V|ϕⱼ>: "))
+    p = Progress(size(todo, 1), 
+        desc=@sprintf("Calculating Vᵢⱼ = <ϕᵢ|V|ϕⱼ> [N=%d (%.2f %%)] : ", length(todo), 100*length(todo)/steps))
+    channel = RemoteChannel(()->Channel{Tuple{Bool, Int64, Int64, Float64}}(32))
 
-    for j in 1:N 
-        for i in 1:j
-            if O[i, j] > 1e-8
-                μ = gs.μ[[i, j], :]
-                xmin = minimum(μ, dims=1) .- σmax
-                xmax = maximum(μ, dims=1) .+ σmax
-                #vij, err = integrate(Vij(i, j, gs, potential), xmin, xmax, reltol=1e-10)
-                vij, err = hcubature(Vij(i, j, gs, potential), xmin, xmax, reltol=1e-8, abstol=1e-10)
-                integrated += 1
-                totalerr += err
-                totalvij += vij
-			else
-				vij = 0.0
-				skipped += 1
-			end
-            H[i, j] += vij
-			H[j, i] = H[i, j]
-            _progressbar && next!(p)
-        end
+    @info "Running calculation on $(nprocs()) process"
+
+    @async while (msg = take!(channel))[1]
+        i = msg[2]; j = msg[3]; Vᵢⱼ = msg[4]
+        H[i, j] += Vᵢⱼ 
+        H[j, i] = H[i, j]
+        next!(p)
     end
-    errmean = totalerr / integrated
-    vijmean = totalvij / integrated
-	@debug "Calculation of Vᵢⱼ" integrated skipped totalerr  totalerr/integrated totalvij totalvij/integrated totalvij/N^2
 
-    O, H
+    @sync @distributed for (i, j) in shuffle(todo)
+        Vᵢⱼ = calculate_Vij(i, j, gs, potential, σmax)
+        put!(channel, (true, i, j, Vᵢⱼ))
+    end
+
+    put!(channel, (false, 0, 0, 0.0)) # calculation finished
+
+    @debug "Calculation of Vᵢⱼ" integrated skipped totalerr  totalerr/integrated totalvij totalvij/integrated totalvij/N^2
+
+    H, O
+end
+
+function calculate_Vij(i, j, gs, potential, σmax)
+    μ = gs.μ[[i, j], :]
+    xmin = vec(minimum(μ, dims=1)) .- σmax
+    xmax = vec(maximum(μ, dims=1)) .+ σmax
+    vij, err = hcubature(Vij(i, j, gs, potential), xmin, xmax)
+    vij
 end
 
 struct Vij{I<:Integer, FS<:AbstractFunctionSet, F} <: Function
