@@ -3,6 +3,7 @@ abstract type AbstractWaveFunctions end
 Base.broadcastable(p::AbstractWaveFunctions) = Ref(p)
 export AbstractWaveFunctions
 
+
 """ Structure containing the results of a calculation with
 eigenvalues, eigenvector, function set and the potential used."""
 struct WaveFunctions{FLOAT, FSET, PFUNC} <: AbstractWaveFunctions

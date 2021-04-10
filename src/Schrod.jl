@@ -26,10 +26,11 @@ using Arpack
 using AtomicUnits: eV, nm
 
 
-# Libs
-#using Basis
-using Gaussian
+# Project modules
+include("Basis.jl")
+include("Gaussian.jl")
 
+# Project files
 include("wavefunctions.jl")
 include("print.jl")
 include("operators.jl")
