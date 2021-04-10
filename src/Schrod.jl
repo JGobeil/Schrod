@@ -5,7 +5,7 @@ module Schrod
 export OT, V, solve
 export WaveFunctions
 export GroupedWaveFunctions
-export state
+export state, state!
 export energy
 export groupbyenergy
 export dos
@@ -35,37 +35,41 @@ include("print.jl")
 include("operators.jl")
 
 _progressbar = true
-_threaded = false
+_multithread = false
+
 
 """
-Change options on how Schrod work (global option).
+Change the default options on how Schrod work (global option). The options 
+should be overriderable with arguments in the function calls.
 
 # Options:
-    progressbar: show(true) or hide(false) the progress bar during calculation
-    threaded: use(true) or not(false) multithreading to evaluation the solution
+    progressbar: show a progress during the calculation if true
+    multithread: multithread some calculations if true
 
 # example:    
     schrod_options(progressbar=true)
 """
-function schrod_options(;progressbar=nothing, threaded=nothing)
-    global _progressbar, _threaded
+function schrod_options(;progressbar=nothing, multithread=nothing)
+    global _progressbar, _multithread
     progressbar !== nothing && (_progressbar = progressbar)
-    threaded    !== nothing && (_threaded    = threaded)
+    multithread    !== nothing && (_multithread = multithread)
 end
 
 """
-    solve(potential, fset::AbstractFunctionSet; maxstates=-1)
+    solve(potential, fset::AbstractFunctionSet, 
+          maxstates=100; tol = 1e-15,
+          progressbar=nothing, multithreaded=nothing)
 
-Find the solution (WaveFunctions) for a `potential` using the functions
-set `fset`. Find a maximum of `maxstates` states (-1 = infinity).
+Find the first `maxstates` of solutions for a `potential` using the functions
+set `fset`. `Return a WaveFunctions`. `tol` is used to limit the calculation 
+of the integrals <ϕᵢ|V|ϕⱼ> for functions where <ϕᵢ|ϕⱼ> > `tol`.
 """
-function solve(potential, fset::AbstractFunctionSet; 
-    progressbar = _progressbar,
-    threaded = _threaded,
-    maxstates = 100,
-    tol = 1e-15)
+function solve(potential, fset::AbstractFunctionSet;
+               maxstates=100, tol = 1e-15,
+               progressbar=nothing, multithread=nothing)
+
     @debug "Solving Schrodinger equation" potential fset
-    H, O = hamiltonian(potential, fset, tol)
+    H, O = hamiltonian(potential, fset, tol; progressbar, multithread)
 
 	@debug "Diagolisation of the Hamiltonian"
 
@@ -76,7 +80,7 @@ function solve(potential, fset::AbstractFunctionSet;
 
     #@debug "Eigen values 1:10" eigs.values[1:10]
 
-    WaveFunctions(eigens[1], eigens[2], fset, potential)
+    WaveFunctions(eigens[1], eigens[2], fset, potential, H, O)
 end
 
 end

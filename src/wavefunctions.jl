@@ -8,20 +8,23 @@ eigenvalues, eigenvector, function set and the potential used."""
 struct WaveFunctions{FLOAT, FSET, PFUNC} <: AbstractWaveFunctions
     eval::Vector{FLOAT}
 	evec::Matrix{FLOAT}
+    eval_im::Vector{FLOAT}
+	evec_im::Matrix{FLOAT}
 	functionset::FSET
 	waves::Vector{FSET}
     potential::PFUNC
+    H::Matrix{FLOAT}
+    O::Matrix{FLOAT}
 end
 
 """ WaveFunction contructor """
-function WaveFunctions(eval, evec, functionset::AbstractFunctionSet, potential)
-    Ai = evec
-    Ei = eval
-    if eltype(Ei) <: Complex
-        @warn "Eigenvalues are complex. Using absolute values"
-        Ei = abs.(Ei)
-        Ai = abs.(Ai)
-    end
+function WaveFunctions(eval, evec, functionset::AbstractFunctionSet, potential, H, O)
+
+    Ei = real.(eval)
+    Ai = real.(evec)
+
+    Ei_im = imag.(eval)
+    Ai_im = imag.(evec)
 
     # permutation
     p = sortperm(Ei) 
@@ -31,6 +34,9 @@ function WaveFunctions(eval, evec, functionset::AbstractFunctionSet, potential)
     Ei = Ei[p]
     Ai = Ai[:, p]
 
+    Ei_im = Ei_im[p]
+    Ai_im = Ai_im[:, p]
+
 	sets = [typeof(functionset)(
 		functionset.σ,
 		functionset.ν,
@@ -38,7 +44,8 @@ function WaveFunctions(eval, evec, functionset::AbstractFunctionSet, potential)
 		view(Ai, :, i) .* functionset.a,
 		functionset.N,
 	) for i in 1:size(Ei, 1)]
-    WaveFunctions(Ei, collect(Ai), functionset, sets, potential)
+    WaveFunctions(Ei, collect(Ai), Ei_im, collect(Ai_im), 
+        functionset, sets, potential, H, O)
 end
 
 energy(states, n::Integer) = energy(states)[n]

@@ -1,6 +1,7 @@
 ## Display functions
 
 import Base.show
+using Printf
 
 function show(io::IO, wf::WaveFunctions)
 	print(io, "WaveFunctions(")
