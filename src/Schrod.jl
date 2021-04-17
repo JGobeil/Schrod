@@ -27,8 +27,8 @@ using AtomicUnits: eV, nm
 
 
 # Project modules
-include("Basis.jl")
-include("Gaussian.jl")
+include("basis.jl")
+include("gaussian.jl")
 
 # Project files
 include("wavefunctions.jl")
@@ -70,7 +70,7 @@ function solve(potential, fset::AbstractFunctionSet;
                progressbar=nothing, multithread=nothing)
 
     @debug "Solving Schrodinger equation" potential fset
-    H, O = hamiltonian(potential, fset, tol; progressbar, multithread)
+    H, O = hamiltonian(potential, fset, tol; multithread, progressbar)
 
 	@debug "Diagolisation of the Hamiltonian"
 
